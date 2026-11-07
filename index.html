@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de polaritones</title>
+<style>:root{--bg:#0f1115;--panel:#171a21;--accent:#5ec8d8;--accent2:#e8985e;--text:#e7e9ee;--muted:#9aa1ac;--border:#262b35}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Helvetica Neue',Arial,sans-serif;padding:20px 14px 48px}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:19px;margin:0 0 4px;color:#fff}
+.sub{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px}
+canvas{width:100%;display:block;background:#0a0c10;border-radius:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+button{background:var(--accent);color:#0f1115;border:none;border-radius:6px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer}
+button.s{background:transparent;border:1px solid var(--border);color:var(--muted)}
+button.s.on{border-color:var(--accent);color:var(--accent)}
+.ctl{flex:1 1 200px;font-size:12px;color:var(--muted)}
+.ctl b{color:var(--text)}
+input[type=range]{width:100%;accent-color:#5ec8d8}
+select{background:#0d0f14;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px;font-size:12.5px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+td,th{border:1px solid var(--border);padding:5px 6px;text-align:center;color:var(--muted)}
+th{color:var(--accent)} td.v{color:var(--text)}
+h2{font-size:15px;margin:2px 0 8px;color:#fff}
+details{border-top:1px solid var(--border);padding:8px 2px}
+summary{cursor:pointer;font-weight:700;font-size:13.5px;color:var(--accent);padding:4px 0}
+details p,details li{font-size:13px;line-height:1.6;color:#cfd3da;margin:6px 0}
+.eq{background:#0d0f14;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:4px;padding:8px 12px;margin:8px 0;font-size:14px;overflow-x:auto;font-family:Georgia,serif;color:#e7e9ee}
+.warn{background:rgba(193,124,143,.1);border:1px solid rgba(193,124,143,.4);border-radius:6px;padding:9px 12px;font-size:12.5px;color:#e3c3cc;margin:8px 0;line-height:1.55}
+.warn b{color:#e59ab0}
+.note{font-size:12.5px;color:#d9c3ab;background:rgba(232,152,94,.08);border:1px solid rgba(232,152,94,.3);border-radius:6px;padding:10px 12px;line-height:1.55}
+.note b{color:var(--accent2)}
+.big{font-size:14px;color:#fff;margin:4px 2px}
+.big b{color:var(--accent2)}
+.leg{font-size:11.5px;color:var(--muted);margin-top:4px}
+</style></head><body><div class="wrap">
+<h1>Polaritones de excitón en una cavidad — simulador v1.1</h1>
+<div class="sub">Mathias Zárate Amenero · desarrollado junto con Claude (Anthropic) · Lima, Perú. Dos osciladores acoplados (el fotón de la cavidad y el excitón del material) forman dos ramas mixtas, los polaritones. El simulador calcula su dispersión, cuánta luz y cuánta materia lleva cada estado, su velocidad de grupo, su vida media y la distancia que recorren, y las compara con la difusión de un excitón sin cavidad. Modelo de dos niveles de orden de magnitud; no hay medición propia.</div>
+<div class="panel">
+  <div class="big" id="head"></div>
+  <canvas id="c1" width="860" height="320" style="aspect-ratio:860/320"></canvas>
+  <div class="leg">Energía contra vector de onda k. Trazos grises: fotón de la cavidad (parábola) y excitón (recta). Curvas: polaritón inferior (LP) y superior (UP); el color del LP va de azul (más fotón) a naranja (más excitón). El punto blanco marca el k elegido.</div>
+  <div class="row"><div class="ctl">Vector de onda k elegido: <b id="kv">8</b> µm⁻¹<input type="range" id="k" min="0" max="40" step="0.1" value="8"></div></div>
+</div>
+<div class="panel">
+  <canvas id="c2" width="860" height="230" style="aspect-ratio:860/230"></canvas>
+  <div class="leg">Velocidad de grupo del polaritón inferior (en unidades de c) contra k. Se anula en el fondo de la rama y es máxima donde la curva de energía más sube.</div>
+</div>
+<div class="panel">
+  <canvas id="c3" width="860" height="230" style="aspect-ratio:860/230"></canvas>
+  <div class="leg">Distancia recorrida L (balística o difusiva según τ<sub>s</sub>) contra k (escala logarítmica). Línea naranja: longitud de difusión de un excitón sin cavidad, √(D τ<sub>ex</sub>).</div>
+</div>
+<div class="panel">
+  <canvas id="c4" width="860" height="260" style="aspect-ratio:860/260"></canvas>
+  <div class="leg">Desplazamiento típico √⟨x²⟩ contra el tiempo, para el k elegido (escalas logarítmicas). Azul sólido: polaritón mientras sigue vivo (balístico al inicio, luego difusivo por el desorden); azul tenue: después de la vida τ (línea vertical), cuando la excitación ya decayó y ese tramo no cuenta. Naranja: excitón sin cavidad, √(2 D t). La distancia que importa es la del azul en t ≈ τ.</div>
+</div>
+<div class="panel">
+  <div class="row">
+    <button class="s on" data-pre="0">Orgánico, Q = 30, resonancia</button>
+    <button class="s" data-pre="1">Orgánico, Q = 100, fotón dominante</button>
+    <button class="s" data-pre="2">Cavidad pobre (Q = 8)</button>
+  </div>
+  <div class="row">
+    <div class="ctl">División de Rabi ħΩ<sub>R</sub>: <b id="Ov">0.50</b> eV<input type="range" id="Om" min="0.05" max="1" step="0.01" value="0.5"></div>
+    <div class="ctl">Desintonía Δ = E<sub>cav</sub>(k=0) − E<sub>ex</sub>: <b id="Dv">0.00</b> eV<input type="range" id="De" min="-0.6" max="0.6" step="0.01" value="0"></div>
+    <div class="ctl">Índice efectivo de la cavidad n<sub>ef</sub>: <b id="nv">1.7</b><input type="range" id="ne" min="1.2" max="3.5" step="0.05" value="1.7"></div>
+  </div>
+  <div class="row">
+    <div class="ctl">Factor de calidad de la cavidad Q: <b id="Qv">30</b><input type="range" id="Q" min="3" max="500" step="1" value="30"></div>
+    <div class="ctl">Vida del excitón τ<sub>ex</sub>: <b id="tv">500</b> ps<input type="range" id="tx" min="0.5" max="3" step="0.01" value="2.7"></div>
+    <div class="ctl">Tiempo de dispersión por desorden τ<sub>s</sub>: <b id="sv">200</b> fs<input type="range" id="ts" min="1" max="4" step="0.01" value="2.3"></div>
+    <div class="ctl">Difusión del excitón D: <b id="dv">1.0</b>×10⁻³ cm²/s<input type="range" id="D" min="-1" max="1" step="0.01" value="0"></div>
+  </div>
+  <table><tbody id="tcal"></tbody></table>
+  <div class="note" id="pnote"></div>
+</div>
+<div class="panel">
+<h2>Qué es esto y para qué sirve</h2>
+<details open><summary>La idea</summary><p>En una cavidad donde el excitón de un material orgánico interactúa fuertemente con la luz, la excitación deja de ser “solo materia” y se vuelve mezcla de luz y materia. Esa mezcla es mucho más ligera (la luz tiene masa efectiva minúscula) y podría viajar más lejos que un excitón normal, que difunde apenas decenas de nanómetros. Pero también vive menos si la luz se escapa por los espejos. El simulador deja ver ese compromiso: más parte de luz → más velocidad pero menos vida; más parte de materia → más vida pero casi sin movimiento.</p></details>
+<details><summary>Ecuaciones</summary>
+<div class="eq">Fotón: &nbsp; E<sub>c</sub>(k) = E<sub>c0</sub> + ħ²k² / (2 m<sub>c</sub>) , &nbsp; m<sub>c</sub> = E<sub>c0</sub> n<sub>ef</sub>² / c²</div>
+<div class="eq">Polaritones: &nbsp; E<sub>±</sub> = ½(E<sub>c</sub> + E<sub>x</sub>) ± ½ √((E<sub>c</sub> − E<sub>x</sub>)² + (ħΩ<sub>R</sub>)²)</div>
+<div class="eq">Fracción de fotón del LP (Hopfield): &nbsp; |C|² = ½ (1 − (E<sub>c</sub> − E<sub>x</sub>) / √((E<sub>c</sub> − E<sub>x</sub>)² + (ħΩ<sub>R</sub>)²))</div>
+<div class="eq">Vida: &nbsp; 1/τ = |C|²/τ<sub>c</sub> + |X|²/τ<sub>ex</sub> , &nbsp; τ<sub>c</sub> = Q ħ / E ; &nbsp; velocidad: &nbsp; v<sub>g</sub> = (1/ħ) ∂E<sub>−</sub>/∂k ; &nbsp; L = v<sub>g</sub> τ</div>
+<p style="font-size:12px;color:#9aa1ac">Se supone un excitón sin dispersión (masa infinita) y se ignoran los estados oscuros (moléculas no acopladas), la absorción, el desorden y la saturación. Con un modelo así el alcance es una cota superior del transporte coherente; en materiales reales el desorden y los estados oscuros lo reducen.</p></details>
+<div class="warn"><b>Límites:</b> (1) Modelo de dos osciladores acoplados, de orden de magnitud: no es un cálculo de un material concreto. (2) Un excitón con masa infinita y sin estados oscuros da el alcance máximo; el desorden se incluye solo con un tiempo de dispersión τ<sub>s</sub> (si τ &gt; τ<sub>s</sub> el movimiento pasa de balístico a difusivo); los experimentos reportan un transporte más lento de lo que la velocidad de grupo ideal sugiere, y los alcances publicados van de ≈ 0.27 µm (Pandya, arXiv:1909.03220) a más de 100 µm (Hou, Adv. Mater. 2020, con una onda superficial de Bloch). (3) La longitud de difusión sin cavidad depende de D y τ<sub>ex</sub> que son supuestos tuyos (valores típicos de orgánicos, no verificados). (4) Mover una excitación no es mover electricidad: para una celda solar aún falta convertirla en carga. (5) Hipótesis de ingeniería; no hay dispositivo ni medición.</div>
+</div>
+<div class="sub" style="text-align:center">Simulación numérica de una hipótesis de ingeniería · Mathias Zárate Amenero · desarrollado junto con Claude (Anthropic)</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const HB=1.054571817e-34,EV=1.602176634e-19,C=2.99792458e8,ME=9.1093837e-31;
+const PRE=[{Om:0.5,De:0,ne:1.7,Q:30,tx:2.7,D:0,ts:2.3},{Om:0.4,De:-0.3,ne:1.7,Q:100,tx:2.7,D:0,ts:2.3},{Om:0.5,De:0,ne:1.7,Q:8,tx:2.7,D:0,ts:2.3}];
+const EX=2.0;
+function getP(){return{Om:+$('Om').value,De:+$('De').value,ne:+$('ne').value,Q:+$('Q').value,tx:Math.pow(10,+$('tx').value),D:Math.pow(10,+$('D').value),ts:Math.pow(10,+$('ts').value),k:+$('k').value};}
+function model(p){
+  const Ec0=(EX+p.De)*EV, mc=Ec0*p.ne*p.ne/(C*C);
+  const Ec=k=>(Ec0+HB*HB*(k*1e6)*(k*1e6)/(2*mc))/EV; // eV
+  const E=(k)=>{const c=Ec(k),d=c-EX,s=Math.sqrt(d*d+p.Om*p.Om);return{lp:0.5*(c+EX)-0.5*s,up:0.5*(c+EX)+0.5*s,c,ph:0.5*(1-d/s)};};
+  const vg=k=>{const h=1e-3;return (E(k+h).lp-E(Math.max(0,k-h)).lp)*EV/(HB*((k+h)-Math.max(0,k-h))*1e6);};
+  const tau=k=>{const e=E(k),tc=p.Q*HB/(Math.max(e.lp,0.1)*EV),tex=p.tx*1e-12,ph=e.ph;return 1/(ph/tc+(1-ph)/tex);};
+  const Len=k=>{const v=Math.abs(vg(k)),t=tau(k),ts=p.ts*1e-15;return t<=ts?v*t:v*Math.sqrt(t*ts);};
+  return {Ec,E,vg,tau,mc,Len};
+}
+function drawE(p,m){
+  const cv=$('c1'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);
+  const L0=56,R0=14,T0=14,B0=30,K=40;const X=k=>L0+k/K*(W-L0-R0);
+  let lo=1e9,hi=-1e9;for(let i=0;i<=150;i++){const e=m.E(K*i/150);lo=Math.min(lo,e.lp);hi=Math.max(hi,e.up,e.c);}
+  lo-=0.1;hi=Math.min(hi,EX+p.De+1.6)+0.05;const Y=e=>T0+(H-T0-B0)*(1-(e-lo)/(hi-lo));
+  x.fillStyle='#9aa1ac';x.font='11px sans-serif';
+  for(let g=0;g<=5;g++){const e=lo+(hi-lo)*g/5;x.strokeStyle='#262b35';x.beginPath();x.moveTo(L0,Y(e));x.lineTo(W-R0,Y(e));x.stroke();x.fillText(e.toFixed(2)+' eV',4,Y(e)+4);}
+  for(let g=0;g<=5;g++){x.fillText((g*8)+'',X(g*8)-4,H-12);}x.fillText('k (µm⁻¹)',W/2-20,H-1);
+  x.setLineDash([5,4]);x.strokeStyle='#6b7480';x.beginPath();for(let i=0;i<=150;i++){const k=K*i/150,y=Y(m.Ec(k));i?x.lineTo(X(k),y):x.moveTo(X(k),y);}x.stroke();
+  x.beginPath();x.moveTo(L0,Y(EX));x.lineTo(W-R0,Y(EX));x.stroke();x.setLineDash([]);
+  x.strokeStyle='#e7e9ee';x.lineWidth=2;x.beginPath();for(let i=0;i<=150;i++){const k=K*i/150,y=Y(m.E(k).up);i?x.lineTo(X(k),y):x.moveTo(X(k),y);}x.stroke();
+  x.lineWidth=3;for(let i=0;i<150;i++){const k0=K*i/150,k1=K*(i+1)/150,e0=m.E(k0),e1=m.E(k1);const t=1-(e0.ph);x.strokeStyle=`rgb(${Math.round(42+t*190)},${Math.round(120+t*30)},${Math.round(214-t*120)})`;x.beginPath();x.moveTo(X(k0),Y(e0.lp));x.lineTo(X(k1),Y(e1.lp));x.stroke();}x.lineWidth=1;
+  x.fillStyle='#fff';x.beginPath();x.arc(X(p.k),Y(m.E(p.k).lp),6,0,7);x.fill();
+  x.fillStyle='#9aa1ac';x.fillText('UP',W-R0-26,Y(m.E(K).up)-6);x.fillText('LP',W-R0-26,Y(m.E(K).lp)-8);
+}
+function drawV(p,m){
+  const cv=$('c2'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);
+  const L0=56,R0=14,T0=12,B0=26,K=40;const X=k=>L0+k/K*(W-L0-R0);
+  let mx=0;const arr=[];for(let i=0;i<=150;i++){const k=K*i/150,v=Math.abs(m.vg(k))/C;arr.push(v);mx=Math.max(mx,v);}mx=mx*1.1||0.01;const Y=v=>T0+(H-T0-B0)*(1-v/mx);
+  x.fillStyle='#9aa1ac';x.font='11px sans-serif';for(let g=0;g<=4;g++){const v=mx*g/4;x.strokeStyle='#262b35';x.beginPath();x.moveTo(L0,Y(v));x.lineTo(W-R0,Y(v));x.stroke();x.fillText(v.toFixed(3)+' c',4,Y(v)+4);}
+  x.strokeStyle='#5ec8d8';x.lineWidth=2;x.beginPath();arr.forEach((v,i)=>{const k=K*i/150;i?x.lineTo(X(k),Y(v)):x.moveTo(X(k),Y(v));});x.stroke();x.lineWidth=1;
+  x.fillStyle='#eb6834';x.beginPath();x.arc(X(p.k),Y(Math.abs(m.vg(p.k))/C),5,0,7);x.fill();x.fillStyle='#9aa1ac';x.fillText('k (µm⁻¹)',W/2-20,H-6);
+}
+function drawL(p,m,LD){
+  const cv=$('c3'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);
+  const L0=56,R0=14,T0=12,B0=26,K=40;const X=k=>L0+k/K*(W-L0-R0);const lo=-9,hi=-3;const Y=lg=>T0+(H-T0-B0)*(1-(Math.max(lo,Math.min(hi,lg))-lo)/(hi-lo));
+  x.fillStyle='#9aa1ac';x.font='11px sans-serif';for(let g=lo;g<=hi;g++){x.strokeStyle='#262b35';x.beginPath();x.moveTo(L0,Y(g));x.lineTo(W-R0,Y(g));x.stroke();const lab=g<=-7?(Math.pow(10,g+6)).toPrecision(1)+' µm':g<=-4?Math.pow(10,g+3).toPrecision(1)+' mm':'1 mm';x.fillText(['1 nm','10 nm','100 nm','1 µm','10 µm','100 µm','1 mm'][g-lo+0]||'',4,Y(g)+4);}
+  x.strokeStyle='#e8985e';x.setLineDash([5,4]);x.beginPath();x.moveTo(L0,Y(Math.log10(LD)));x.lineTo(W-R0,Y(Math.log10(LD)));x.stroke();x.setLineDash([]);
+  x.strokeStyle='#5ec8d8';x.lineWidth=2;x.beginPath();for(let i=0;i<=150;i++){const k=K*i/150,L=m.Len(k);const y=Y(Math.log10(Math.max(L,1e-12)));i?x.lineTo(X(k),y):x.moveTo(X(k),y);}x.stroke();x.lineWidth=1;
+  const Lp=m.Len(p.k);x.fillStyle='#eb6834';x.beginPath();x.arc(X(p.k),Y(Math.log10(Math.max(Lp,1e-12))),5,0,7);x.fill();x.fillStyle='#9aa1ac';x.fillText('k (µm⁻¹)',W/2-20,H-6);
+}
+
+function drawM(p,m,LD){
+  const cv=$('c4'),x=cv.getContext('2d'),W=cv.width,H=cv.height;x.clearRect(0,0,W,H);
+  const L0=60,R0=14,T0=12,B0=28;const v=Math.abs(m.vg(p.k)),tau=m.tau(p.k),ts=p.ts*1e-15,D=p.D*1e-7;
+  const tlo=-15,thi=-8; const Xt=lt=>L0+(lt-tlo)/(thi-tlo)*(W-L0-R0); const lo=-10,hi=-3.5; const Y=lg=>T0+(H-T0-B0)*(1-(Math.max(lo,Math.min(hi,lg))-lo)/(hi-lo));
+  x.fillStyle='#9aa1ac';x.font='11px sans-serif';
+  for(let g=-10;g<=-4;g++){x.strokeStyle='#262b35';x.beginPath();x.moveTo(L0,Y(g));x.lineTo(W-R0,Y(g));x.stroke();x.fillText(['0.1 nm','1 nm','10 nm','100 nm','1 µm','10 µm','100 µm'][g+10],4,Y(g)+4);}
+  [-15,-14,-13,-12,-11,-10,-9,-8].forEach(g=>x.fillText(['1 fs','10 fs','100 fs','1 ps','10 ps','100 ps','1 ns','10 ns'][g+15],Xt(g)-10,H-12));
+  const msdP=t=>2*v*v*ts*ts*(t/ts-1+Math.exp(-t/ts));
+  [[true],[false]].forEach(([pre])=>{x.strokeStyle=pre?'#5ec8d8':'rgba(94,200,216,0.3)';x.lineWidth=pre?2:1;x.setLineDash(pre?[]:[3,3]);x.beginPath();let st=false;for(let i=0;i<=200;i++){const lt=tlo+(thi-tlo)*i/200,t=Math.pow(10,lt);if((t<=tau)!==pre)continue;const r=Math.sqrt(msdP(t));const y=Y(Math.log10(Math.max(r,1e-12)));st?x.lineTo(Xt(lt),y):x.moveTo(Xt(lt),y);st=true;}x.stroke();});x.setLineDash([]);x.lineWidth=1;
+  x.strokeStyle='#e8985e';x.beginPath();for(let i=0;i<=200;i++){const lt=tlo+(thi-tlo)*i/200,t=Math.pow(10,lt);const r=Math.sqrt(2*D*t);const y=Y(Math.log10(Math.max(r,1e-12)));i?x.lineTo(Xt(lt),y):x.moveTo(Xt(lt),y);}x.stroke();
+  x.strokeStyle='#5ec8d8';x.setLineDash([4,4]);x.beginPath();x.moveTo(Xt(Math.log10(tau)),T0);x.lineTo(Xt(Math.log10(tau)),H-B0);x.stroke();x.setLineDash([]);
+  x.fillStyle='#9aa1ac';x.fillText('tiempo',W/2-14,H-1);
+}
+function table(p,m,LD){
+  const e=m.E(p.k),v=m.vg(p.k),t=m.tau(p.k),L=m.Len(p.k);
+  let best=0,kb=0;for(let i=1;i<=150;i++){const k=40*i/150,l=m.Len(k);if(l>best){best=l;kb=k;}}
+  const f=l=>l>=1e-3?(l*1e3).toFixed(2)+' mm':l>=1e-6?(l*1e6).toFixed(2)+' µm':(l*1e9).toFixed(1)+' nm';
+  const rows=[['Fracción de fotón / de excitón del LP en k',(e.ph*100).toFixed(0)+' % / '+((1-e.ph)*100).toFixed(0)+' %'],
+   ['Velocidad de grupo v_g',(Math.abs(v)/C).toFixed(4)+' c  ('+(Math.abs(v)/1e6).toFixed(2)+'×10⁶ m/s)'],
+   ['Vida media del LP τ',(t*1e12).toFixed(3)+' ps'],
+   ['Distancia recorrida (balística v_g τ si τ ≤ τ_s; difusiva v_g √(τ τ_s) si no)',f(L)],
+   ['Máximo de L para k ≤ 40 µm⁻¹, sobre k (en k = '+kb.toFixed(1)+' µm⁻¹)',f(best)],
+   ['Longitud de difusión de un excitón sin cavidad',f(LD)],
+   ['Cociente (máximo del polaritón) / (excitón sin cavidad)',(best/LD).toFixed(1)+' ×'],
+   ['Masa efectiva del fotón de la cavidad',(m.mc/ME).toExponential(1)+' m_e']];
+  $('tcal').innerHTML=rows.map(r=>`<tr><td style="text-align:left">${r[0]}</td><td class="v">${r[1]}</td></tr>`).join('');
+  const w=[];if(best/LD>10)w.push('el polaritón recorre mucho más que el excitón sin cavidad, pero este es el máximo ideal; en un material real el desorden y los estados oscuros lo reducen');else if(best/LD<2)w.push('el polaritón no mejora al excitón sin cavidad con estos parámetros');
+  if(e.ph>0.8)w.push('el estado es casi todo fotón: veloz, pero vive solo lo que vive la luz en la cavidad (Q bajo = vida corta)');
+  if(e.ph<0.2)w.push('el estado es casi todo excitón: vive más, pero casi no se mueve');
+  w.push('el compromiso es general: L = v_g τ sube con la fracción de fotón por la velocidad y baja por la vida');
+  $('pnote').innerHTML='<b>Lectura:</b> '+w.join('; ')+'.';
+  $('head').innerHTML='División de Rabi = <b>'+p.Om.toFixed(2)+' eV</b> &nbsp;·&nbsp; L máximo = <b>'+f(best)+'</b> &nbsp;·&nbsp; excitón sin cavidad = <b>'+f(LD)+'</b>';
+}
+function refresh(){const p=getP();
+  $('Ov').textContent=p.Om.toFixed(2);$('Dv').textContent=p.De.toFixed(2);$('nv').textContent=p.ne.toFixed(2);$('Qv').textContent=p.Q;$('tv').textContent=p.tx<10?p.tx.toFixed(1):p.tx.toFixed(0);$('dv').textContent=p.D.toFixed(2);$('sv').textContent=p.ts.toFixed(0);$('kv').textContent=p.k.toFixed(1);
+  const m=model(p),LD=Math.sqrt(p.D*1e-7*p.tx*1e-12);
+  drawE(p,m);drawV(p,m);drawL(p,m,LD);drawM(p,m,LD);table(p,m,LD);}
+['Om','De','ne','Q','tx','D','ts','k'].forEach(id=>$(id).oninput=refresh);
+document.querySelectorAll('button[data-pre]').forEach(b=>b.onclick=()=>{const q=PRE[+b.dataset.pre];Object.keys(q).forEach(kk=>$(kk).value=q[kk]);document.querySelectorAll('button[data-pre]').forEach(o=>o.classList.toggle('on',o===b));refresh();});
+refresh();window.__sim={model,getP};
+</script></body></html>
